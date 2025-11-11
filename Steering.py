@@ -1,41 +1,37 @@
-import Jetson.GPIO as GPIO
+#Controlled through canbus conection
+import can
+import struct
 import time
 
-# Pin definition (BOARD numbering)
-PWM_PIN = 33  # Change to the pin you are using
+# CAN bus setup
+bus = can.interface.Bus(channel='can0', bustype='socketcan')
 
-# GPIO setup
-GPIO.setmode(GPIO.BOARD)
-GPIO.setup(PWM_PIN, GPIO.OUT)
+# Spark MAX CAN ID (change if your Spark MAX uses a different ID)
+SPARK_MAX_ID = 1
 
-# Set PWM frequency to 50Hz (standard for hobby servos)
-pwm = GPIO.PWM(PWM_PIN, 50)  
-pwm.start(0)  # Start PWM with 0% duty cycle
+# Helper function to create a Spark MAX speed command
+def spark_max_set_speed(speed: float):
+    # Spark MAX expects float32 little-endian in data bytes
+    speed_bytes = struct.pack('<f', speed)
+    # 0x200 + device ID = standard command arbitration ID
+    msg = can.Message(
+        arbitration_id=0x200 + SPARK_MAX_ID,
+        data=speed_bytes,
+        is_extended_id=False
+    )
+    return msg
 
-def set_servo_angle(angle):
-    """
-    Converts an angle (0-180) to a duty cycle (2.5-12.5%)
-    0 degrees -> 2.5% duty cycle
-    180 degrees -> 12.5% duty cycle
-    """
-    duty_cycle = 2.5 + (angle / 180.0) * 10.0
-    pwm.ChangeDutyCycle(duty_cycle)
-
+# Example usage: run motor at 50% for 5 seconds
 try:
-    while True:
-        # Sweep from 0 to 180 degrees
-        for angle in range(0, 181, 5):
-            set_servo_angle(angle)
-            time.sleep(0.05)
-        # Sweep back from 180 to 0 degrees
-        for angle in range(180, -1, -5):
-            set_servo_angle(angle)
-            time.sleep(0.05)
+    print("Running motor at 50%")
+    msg = spark_max_set_speed(0.5)
+    bus.send(msg)
 
-except KeyboardInterrupt:
-    print("Exiting gracefully...")
+    time.sleep(5)
 
-finally:
-    pwm.stop()
-    GPIO.cleanup()
+    print("Stopping motor")
+    msg = spark_max_set_speed(0.0)
+    bus.send(msg)
 
+except can.CanError as e:
+    print("CAN Error:", e)

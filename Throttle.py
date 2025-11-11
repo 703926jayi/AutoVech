@@ -13,11 +13,7 @@ pwm = GPIO.PWM(PWM_PIN, 50)
 pwm.start(0)  # Start PWM with 0% duty cycle
 
 def set_servo_angle(angle):
-    """
-    Converts an angle (0-180) to a duty cycle (2.5-12.5%)
-    0 degrees -> 2.5% duty cycle
-    180 degrees -> 12.5% duty cycle
-    """
+    
     duty_cycle = 2.5 + (angle / 180.0) * 10.0
     pwm.ChangeDutyCycle(duty_cycle)
 
