@@ -1,37 +1,18 @@
 import Jetson.GPIO as GPIO
 import time
 
-# Pin definition (BOARD numbering)
-PWM_PIN = 33  # Change to the pin you are using
+class Throttle:
+    def __init__(self, pin=33, freq=50):
+        self.pin = pin
+        self.freq = freq
+        GPIO.setup(self.pin, GPIO.OUT)
+        self.pwm = GPIO.PWM(self.pin, self.freq)
+        self.pwm.start(0)
 
-# GPIO setup
-GPIO.setmode(GPIO.BOARD)
-GPIO.setup(PWM_PIN, GPIO.OUT)
+    def set_angle(self, angle):
+        """Set servo angle between 0 and 180 degrees."""
+        duty_cycle = 2.5 + (angle / 180.0) * 10.0
+        self.pwm.ChangeDutyCycle(duty_cycle)
 
-# Set PWM frequency to 50Hz (standard for hobby servos)
-pwm = GPIO.PWM(PWM_PIN, 50)  
-pwm.start(0)  # Start PWM with 0% duty cycle
-
-def set_servo_angle(angle):
-    
-    duty_cycle = 2.5 + (angle / 180.0) * 10.0
-    pwm.ChangeDutyCycle(duty_cycle)
-
-try:
-    while True:
-        # Sweep from 0 to 180 degrees
-        for angle in range(0, 181, 5):
-            set_servo_angle(angle)
-            time.sleep(0.05)
-        # Sweep back from 180 to 0 degrees
-        for angle in range(180, -1, -5):
-            set_servo_angle(angle)
-            time.sleep(0.05)
-
-except KeyboardInterrupt:
-    print("Exiting gracefully...")
-
-finally:
-    pwm.stop()
-    GPIO.cleanup()
-
+    def cleanup(self):
+        self.pwm.stop()
