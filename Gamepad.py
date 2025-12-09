@@ -1,9 +1,6 @@
 from inputs import get_gamepad
 class Gamepad:
-    """
-    Simple Xbox controller reader.
-    Call update() in the main loop to refresh values.
-    """
+
 
     def __init__(self):
         self.left_stick_y = 0.0

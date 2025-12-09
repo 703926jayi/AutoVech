@@ -12,6 +12,7 @@ def main():
     actuator = Brakes(dir_pin1=33, dir_pin2=35, enable_pin=31)
     gamepad = Gamepad()
 
+
     print("Gamepad control active. Use triggers for actuator, left stick for servo.")
     print("Press Ctrl+C to exit.")
 
