@@ -35,11 +35,6 @@ def main():
             else:
                 actuator.stop()
 
-            # === Optional buttons ===
-            if gamepad.button_a:
-                print("Button A pressed – example action")
-            if gamepad.button_b:
-                print("Button B pressed – example action")
 
             time.sleep(0.05)
 
