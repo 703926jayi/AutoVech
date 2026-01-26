@@ -1,18 +1,51 @@
 import Jetson.GPIO as GPIO
-import time
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import Float32
 
-class Throttle:
-    def __init__(self, pin=33, freq=50):
+class ThrottleNode(Node):
+    def __init__(self, pin=33, timer_period=0.02):
+        # establish the node name in the larger Ros2 system
+        super().__init__("throttle_node")
         self.pin = pin
-        self.freq = freq
+        self.freq = 1 / timer_period
         GPIO.setup(self.pin, GPIO.OUT)
         self.pwm = GPIO.PWM(self.pin, self.freq)
         self.pwm.start(0)
+
+        # Subscribe to throttle angle topic
+        self.subscription = self.create_subscription(
+            Float32,
+            'throttle_angle',
+            self.angle_callback,
+            10
+        )
 
     def set_angle(self, angle):
         """Set servo angle between 0 and 180 degrees."""
         duty_cycle = 2.5 + (angle / 180.0) * 10.0
         self.pwm.ChangeDutyCycle(duty_cycle)
 
+    def angle_callback(self, msg):
+        angle = max(0, min(180, msg.data))
+        self.set_angle(angle)
+
     def cleanup(self):
         self.pwm.stop()
+        GPIO.cleanup()
+
+def throttle_start(args=None):
+    # initialize the ROS2 communication
+    rclpy.init(args=args)
+    # declare the node constructor
+    node = ThrottleNode(timer_period=0.02)
+    # keeps the node alive, waits for a request to kill the node (ctrl+c)
+    
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    # shutdown the ROS2 communication
+    node.cleanup()
+    node.destroy_node()
+    rclpy.shutdown()
