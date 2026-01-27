@@ -26,8 +26,11 @@ class ThrottleNode(Node):
         duty_cycle = 2.5 + (angle / 180.0) * 10.0
         self.pwm.ChangeDutyCycle(duty_cycle)
 
-    def angle_callback(self, msg):
-        angle = max(0, min(180, msg.data))
+    def angle_callback(self, msg, controller_connected):
+        if controller_connected == True:
+            angle = max(0, min(180, msg.data))
+        else:
+            angle = 0
         self.set_angle(angle)
 
     def cleanup(self):
@@ -40,7 +43,6 @@ def throttle_start(args=None):
     # declare the node constructor
     node = ThrottleNode(timer_period=0.02)
     # keeps the node alive, waits for a request to kill the node (ctrl+c)
-    
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
