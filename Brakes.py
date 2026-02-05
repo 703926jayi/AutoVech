@@ -3,15 +3,17 @@ import Jetson.GPIO as GPIO
 import spidev
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, Bool
 
 class BrakesNode(Node):
-    def __init__(self, dir_pin1=33, dir_pin2=35, enable_pin=31, adc_channel=0, timer_period = 0.02):
+    def __init__(self, dir_pin1=33, dir_pin2=35, enable_pin=31, adc_channel=0):
         # establish the node name in the larger Ros2 system
         super().__init__("brakes_node")
         
         GPIO.setmode(GPIO.BOARD)
         GPIO.setwarnings(False)
+
+        self.create_timer(0.02, self.control_loop)
 
         # Motor control setup
         self.dir1 = dir_pin1
@@ -32,29 +34,46 @@ class BrakesNode(Node):
         self.spi.open(0, 0)
         self.spi.max_speed_hz = 1350000
 
-        self.target_position = 0.0
+        self.target_position = 1.0
+        self.controller_connected = False
+        self.current_brake_pos = 0.0
 
         # Control parameters
         self.deadband = 0.02       
         self.kp = 100.0  
 
         # Subscribe to brake position topic
-        self.subscription = self.create_subscription(
+        self.brake_sub = self.create_subscription(
             Float32,
             'brake_position',
             self.brake_callback,
             10
         )
+        # Controller connection subscriber
+        self.connection_sub = self.create_subscription(
+            Bool,
+            'is_connected',
+            self.connection_callback,
+            10
+        )
+
+    def brake_callback(self, msg: Float32):
+        self.current_brake_pos = msg.data
+        self.brake_position()
+
+    def connection_callback(self, msg: Bool):
+        self.controller_connected = msg.data
+        self.brake_position()
 
     def read_adc(self):
         """Read analog input from MCP3008."""
         r = self.spi.xfer2([1, (8 + self.adc_channel) << 4, 0])
         return ((r[1] & 3) << 8) + r[2]
     
-    def brake_callback(self, msg: Float32, controller_connected):
+    def brake_position(self):
         """Update desired brake position."""
-        if controller_connected == True:
-            self.target_position = max(0.0, min(1.0, msg.data))
+        if self.controller_connected:
+            self.target_position = max(0.0, min(1.0, self.current_brake_pos))
         else:
             self.target_position = 1.0
 
@@ -105,7 +124,7 @@ def brakes_start(args=None):
     # initialize the ROS2 communication
     rclpy.init(args=args)
     # declare the node constructor
-    node = BrakesNode(timer_period=0.02)
+    node = BrakesNode()
     # keeps the node alive, waits for a request to kill the node (ctrl+c)
     try:
         rclpy.spin(node)

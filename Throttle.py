@@ -2,6 +2,8 @@ import Jetson.GPIO as GPIO
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32
+from std_msgs.msg import Bool
+
 
 class ThrottleNode(Node):
     def __init__(self, pin=33, timer_period=0.02):
@@ -13,25 +15,41 @@ class ThrottleNode(Node):
         self.pwm = GPIO.PWM(self.pin, self.freq)
         self.pwm.start(0)
 
-        # Subscribe to throttle angle topic
-        self.subscription = self.create_subscription(
+       # Throttle angle subscriber
+        self.angle_sub = self.create_subscription(
             Float32,
             'throttle_angle',
             self.angle_callback,
             10
         )
 
+        # Controller connection subscriber
+        self.connection_sub = self.create_subscription(
+            Bool,
+            'is_connected',
+            self.connection_callback,
+            10
+        )
+
+    def angle_callback(self, msg: Float32):
+        self.current_angle = msg.data
+        self.update_servo()
+
+    def connection_callback(self, msg: Bool):
+        self.controller_connected = msg.data
+        self.update_servo()
+
+    def update_servo(self):
+        if self.controller_connected:
+            angle = max(0, min(180, self.current_angle))
+        else:
+            angle = 0
+        self.set_angle(angle)
+
     def set_angle(self, angle):
         """Set servo angle between 0 and 180 degrees."""
         duty_cycle = 2.5 + (angle / 180.0) * 10.0
         self.pwm.ChangeDutyCycle(duty_cycle)
-
-    def angle_callback(self, msg, controller_connected):
-        if controller_connected == True:
-            angle = max(0, min(180, msg.data))
-        else:
-            angle = 0
-        self.set_angle(angle)
 
     def cleanup(self):
         self.pwm.stop()
