@@ -32,7 +32,9 @@ setup(
     entry_points={
         'console_scripts': [
             #Add more executables here once created in form 'executable_name = autovech.file:start_function'
-            'throttle_executable = autovech.Throttle:start_throttle'
+            'throttle_executable = autovech.Throttle:start_throttle',
+            'brakes_executable = autovech.Brakes:start_brakes',
+            'gamepad_executable = autovech.Gamepad:gamepad_start',
         ],
     },
 )

@@ -1,9 +1,11 @@
+#!/usr/bin/env python3
+
 import Jetson.GPIO as GPIO
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32
 from std_msgs.msg import Bool
-
+from rclpy.qos import ReliabilityPolicy, QoSProfile
 
 class ThrottleNode(Node):
     def __init__(self, pin=33, timer_period=0.02):
@@ -20,7 +22,7 @@ class ThrottleNode(Node):
             Float32,
             'throttle_angle',
             self.angle_callback,
-            10
+            QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         )
 
         # Controller connection subscriber
@@ -28,7 +30,7 @@ class ThrottleNode(Node):
             Bool,
             'is_connected',
             self.connection_callback,
-            10
+            QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         )
 
     def angle_callback(self, msg: Float32):

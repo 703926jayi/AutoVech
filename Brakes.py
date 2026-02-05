@@ -1,9 +1,12 @@
+#!/usr/bin/env python3
+
 #Controlled through Potentionmeter
 import Jetson.GPIO as GPIO
 import spidev
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32, Bool
+from rclpy.qos import ReliabilityPolicy, QoSProfile
 
 class BrakesNode(Node):
     def __init__(self, dir_pin1=33, dir_pin2=35, enable_pin=31, adc_channel=0):
@@ -47,14 +50,14 @@ class BrakesNode(Node):
             Float32,
             'brake_position',
             self.brake_callback,
-            10
+            QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         )
         # Controller connection subscriber
         self.connection_sub = self.create_subscription(
             Bool,
             'is_connected',
             self.connection_callback,
-            10
+            QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         )
 
     def brake_callback(self, msg: Float32):

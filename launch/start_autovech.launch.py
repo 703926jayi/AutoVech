@@ -7,4 +7,12 @@ def generate_launch_description():
             package='autovech',
             executable='throttle_executable',
             output='screen'),
+        Node(
+            package='autovech',
+            executable='brakes_executable',
+            output='screen'),
+        Node(
+            package='autovech',
+            executable='gamepad_executable',
+            output='screen'),
     ])
