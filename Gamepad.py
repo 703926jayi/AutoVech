@@ -26,6 +26,18 @@ class GamepadNode(Node):
             'is_connected',
             QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         )
+        #Throttle Topic Creation
+        self.publisher_throttle = self.create_publisher(
+            Float32,
+            'throttle_angle',
+            QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
+        )
+        #Brakes Topic Creation
+        self.publisher_brakes = self.create_publisher(
+            Float32,
+            'brake_position',
+            QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
+        )
         
         #Topic Callbacker
         self.timer = self.create_timer(timer_period, self.timer_callback)
@@ -38,6 +50,22 @@ class GamepadNode(Node):
         )
         self.gamepad_thread.start()
 
+    def timer_callback(self):
+        #Publishing for is_connected
+        msg_connected = Bool()
+        msg_connected.data = self.connected
+        self.publisher_connected.publish(msg_connected)
+
+        #Publishing for Throttle
+        msg_throttle = Float32()
+        msg_throttle.data = self.right_trigger
+        self.publisher_throttle.publish(msg_throttle)
+
+        #Publishing for Brakes
+        msg_brakes = Float32()
+        msg_brakes.data = self.left_trigger
+        self.publisher_brakes.publish(msg_brakes)
+    
     def gamepad_loop(self):
         while self._running:
             try:
@@ -58,11 +86,7 @@ class GamepadNode(Node):
                 self.connected = False
                 self.get_logger().warn(f"Gamepad read error: {e}")
 
-    def timer_callback(self):
-        #Publishing for is_connected
-        msg_connected = Bool()
-        msg_connected.data = self.connected
-        self.publisher_connected.publish(msg_connected)
+    
 
 def gamepad_start(args=None):
     # initialize the ROS2 communication
