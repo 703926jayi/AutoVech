@@ -18,82 +18,210 @@ documentation.
  
 import can
 import struct
-from evdev import InputDevice, ecodes
+import time
+import math
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32
-from std_msgs.msg import Bool
-from rclpy.qos import ReliabilityPolicy, QoSProfile
- 
+from rclpy.qos import QoSProfile, ReliabilityPolicy
+
+
 class SteeringNode(Node):
-    def __init__(self, timer_period = 0.02):
+
+    def __init__(self):
         super().__init__("steering_node")
-        self.node_id = 1 # must match `<odrv>.axis0.config.can.node_id`. The default is 0.
+
+        # ================= CONFIG =================
+
+        self.node_id = 1
+
+        self.MAX_POSITION = 0.4
+        self.MAX_RATE = 1.5            # max change per second (units/sec)
+        self.CONTROL_PERIOD = 0.02     # 50 Hz
+        self.HEARTBEAT_TIMEOUT = 0.5
+        self.COMMAND_TIMEOUT = 0.25
+        self.RECOVERY_COOLDOWN = 1.0
+
+        # ==========================================
+
+        # CAN
         self.bus = can.interface.Bus("can0", interface="socketcan")
-        self.canbus_Loop()
-        # Throttle angle subscriber
-        self.position_sub = self.create_subscription(
+
+        # State
+        self.desired_position = 0.0
+        self.filtered_position = 0.0
+
+        self.axis_state = 0
+        self.axis_error = 0
+        self.in_closed_loop = False
+
+        self.last_heartbeat_time = time.time()
+        self.last_command_time = time.time()
+        self.last_recovery_attempt = 0.0
+
+        # ROS subscriber
+        self.create_subscription(
             Float32,
-            'steering_position',
+            "steering_position",
             self.position_callback,
             QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         )
-    def canbus_Loop(self):
-        while rclpy.ok():
-            msg = self.bus.recv(timeout=0.1)
-            if msg is None:
-                continue
 
-            if msg.arbitration_id == (self.node_id << 5 | 0x01):
-                error, state, result, traj_done = struct.unpack('<IBBB', bytes(msg.data[:7]))
-                if state == 8:
-                    break
-                
-    def position_callback(self, ros_msg: Float32):
-    
-        # Put axis into closed loop control state
-        self.bus.send(can.Message(
-            arbitration_id=(self.node_id << 5 | 0x07), # 0x07: Set_Axis_State
-            data=struct.pack('<I', 8), # 8: AxisState.CLOSED_LOOP_CONTROL
-            is_extended_id=False
-        ))
- 
-        # Wait for axis to enter closed loop control by scanning heartbeat messages
-        
+        # Timers
+        self.control_timer = self.create_timer(
+            self.CONTROL_PERIOD,
+            self.control_loop
+        )
 
-        max_pos = 0.4
-        
-        # Control ODrive while notifier object exist
-        #with can.Notifier(bus, [on_rx_message]):
-        
-        pos_setpoint = max_pos - ros_msg.data * max_pos
-            # Update velocity and reset watchdog timer
-        self.bus.send(can.Message(
-            arbitration_id=(self.node_id << 5 | 0x0c), # 0x0c: Set_Input_Vel
-            data=struct.pack('<fhh', pos_setpoint, 1, 1), # 0.0: torque feedforward
-            is_extended_id=False
-        ))
-    
+        self.heartbeat_timer = self.create_timer(
+            0.02,
+            self.poll_heartbeat
+        )
+
+        self.get_logger().info("Steering node started")
+
+    # =====================================================
+    # ROS CALLBACK
+    # =====================================================
+
+    def position_callback(self, msg: Float32):
+
+        # Saturate input
+        value = max(-1.0, min(1.0, msg.data))
+
+        self.desired_position = value
+        self.last_command_time = time.time()
+
+    # =====================================================
+    # MAIN CONTROL LOOP (50 Hz deterministic)
+    # =====================================================
+
+    def control_loop(self):
+
+        now = time.time()
+
+        # -------- Command Timeout Fail-Safe --------
+        if now - self.last_command_time > self.COMMAND_TIMEOUT:
+            self.desired_position = 0.0
+
+        # -------- Heartbeat Timeout --------
+        if now - self.last_heartbeat_time > self.HEARTBEAT_TIMEOUT:
+            if self.in_closed_loop:
+                self.get_logger().error("Heartbeat timeout — dropping closed loop")
+            self.in_closed_loop = False
+
+        # -------- Error Handling --------
+        if self.axis_error != 0:
+            self.get_logger().error(f"ODrive axis error: {self.axis_error}")
+            self.in_closed_loop = False
+            return
+
+        # -------- Closed Loop Recovery --------
+        if not self.in_closed_loop:
+            if now - self.last_recovery_attempt > self.RECOVERY_COOLDOWN:
+                self.request_closed_loop()
+                self.last_recovery_attempt = now
+            return
+
+        # -------- Rate Limiting --------
+        max_step = self.MAX_RATE * self.CONTROL_PERIOD
+        delta = self.desired_position - self.filtered_position
+
+        if abs(delta) > max_step:
+            delta = math.copysign(max_step, delta)
+
+        self.filtered_position += delta
+
+        # -------- Convert to ODrive Position --------
+        pos_setpoint = self.MAX_POSITION * self.filtered_position
+
+        # -------- Send Command --------
+        try:
+            self.bus.send(can.Message(
+                arbitration_id=(self.node_id << 5 | 0x0C),
+                data=struct.pack('<fhh', pos_setpoint, 0, 0),
+                is_extended_id=False
+            ))
+        except can.CanError:
+            self.get_logger().error("CAN transmission failure")
+
+    # =====================================================
+    # REQUEST CLOSED LOOP
+    # =====================================================
+
+    def request_closed_loop(self):
+        try:
+            self.bus.send(can.Message(
+                arbitration_id=(self.node_id << 5 | 0x07),
+                data=struct.pack('<I', 8),
+                is_extended_id=False
+            ))
+            self.get_logger().warn("Requesting closed loop control")
+        except can.CanError:
+            self.get_logger().error("Failed to send closed loop request")
+
+    # =====================================================
+    # HEARTBEAT POLLING (Non-blocking)
+    # =====================================================
+
+    def poll_heartbeat(self):
+
+        msg = self.bus.recv(timeout=0.0)
+        if msg is None:
+            return
+
+        if msg.arbitration_id != (self.node_id << 5 | 0x01):
+            return
+
+        self.last_heartbeat_time = time.time()
+
+        error, state, result, traj_done = struct.unpack(
+            '<IBBB',
+            bytes(msg.data[:7])
+        )
+
+        self.axis_error = error
+        self.axis_state = state
+
+        if error != 0:
+            return
+
+        if state == 8:
+            if not self.in_closed_loop:
+                self.get_logger().info("Closed loop engaged")
+            self.in_closed_loop = True
+        else:
+            self.in_closed_loop = False
+
+    # =====================================================
+    # CLEANUP
+    # =====================================================
+
     def cleanup(self):
-        self.bus.shutdown()
+        try:
+            self.bus.shutdown()
+        except Exception:
+            pass
+        self.get_logger().info("Steering node shutdown cleanly")
 
-def throttle_start(args=None):
-    # initialize the ROS2 communication
+
+# =========================================================
+# MAIN
+# =========================================================
+
+def main(args=None):
     rclpy.init(args=args)
-    # declare the node constructor
-    node = SteeringNode(timer_period=0.02)
-    # keeps the node alive, waits for a request to kill the node (ctrl+c)
+    node = SteeringNode()
+
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
-    # shutdown the ROS2 communication
+
     node.cleanup()
     node.destroy_node()
     rclpy.shutdown()
 
-    """# Handler for incoming CAN messages to print encoder feedback
-        def on_rx_message(msg: can.Message):
-            if msg.arbitration_id == (node_id << 5 | 0x09): # 0x09: Get_Encoder_Estimates
-                pos, vel = struct.unpack('<ff', bytes(msg.data))
-                print(f"pos: {pos:.3f} [turns], vel: {vel:.3f} [turns/s]")"""
+
+if __name__ == "__main__":
+    main()
