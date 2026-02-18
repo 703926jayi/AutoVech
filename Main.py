@@ -1,4 +1,4 @@
-import Jetson.GPIO as GPIO
+'''import Jetson.GPIO as GPIO
 import time
 from Throttle import Throttle
 from Brakes import Brakes
@@ -47,5 +47,5 @@ def main():
         GPIO.cleanup()
 
 if __name__ == "__main__":
-    main()
+    main()'''
 
