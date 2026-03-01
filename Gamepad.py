@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-
-from inputs import get_gamepad
+import smbus
+import time
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32, Bool
@@ -14,9 +14,14 @@ class GamepadNode(Node):
         self.left_stick_y = 0.0
         self.right_trigger = 0.0
         self.left_trigger = 0.0
-        self.button_a = False
-        self.button_b = False
+        self.mode = 0
         self.connected =False
+        self.timer_period = timer_period
+
+        #I2C Inits
+        self.BUS_NUMBER = 1        # Change if needed (check with i2cdetect)
+        self.ADDRESS = 0x08
+        self.NUM_CHANNELS = 6
 
         super().__init__('gamepad_node')
         
@@ -36,6 +41,12 @@ class GamepadNode(Node):
         self.publisher_brakes = self.create_publisher(
             Float32,
             'brake_position',
+            QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
+        )
+        #Steering Topic Creation
+        self.publisher_steering = self.create_publisher(
+            Float32,
+            'steering_position',
             QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         )
         
@@ -65,27 +76,47 @@ class GamepadNode(Node):
         msg_brakes = Float32()
         msg_brakes.data = self.left_trigger
         self.publisher_brakes.publish(msg_brakes)
+
+        #Publishing for Steering
+        msg_steering = Float32()
+        msg_steering.data = self.left_stick_x
+        self.publisher_brakes.publish(msg_steering)
     
     def gamepad_loop(self):
-        while self._running:
+       
+        bus = smbus.SMBus(self.BUS_NUMBER)
+       
+        while True:
             try:
-                events = get_gamepad()
                 self.connected = True
-                for event in events:
-                    if event.code == 'ABS_X':          # Left stick horizontal
-                        self.left_stick_x = event.state / 32767.0
-                    elif event.code == 'ABS_RZ':       # Right trigger
-                        self.right_trigger = event.state / 255.0
-                    elif event.code == 'ABS_Z':        # Left trigger
-                        self.left_trigger = event.state / 255.0
-                    elif event.code == 'BTN_SOUTH':    # A button
-                        self.button_a = event.state == 1
-                    elif event.code == 'BTN_EAST':     # B button
-                        self.button_b = event.state == 1
+                # Read exactly 6 bytes
+                data = bus.read_i2c_block_data(self.ADDRESS, 0, self.NUM_CHANNELS)
+                
+                # Convert back to normalized float (0.0–1.0)
+                channels = [byte / 255.0 for byte in data]
+
+                for i, value in enumerate(channels):
+
+                    print(f"CH{i+1}: {value:.3f}", end="  ")
+
+                    if i == 0:
+                        if value > 0.5:
+                            self.right_trigger = ((value-0.5)*2)
+                            self.left_trigger = 0
+                        else:
+                            self.right_trigger = 0
+                            self.left_trigger = ((abs(value)-0.5)*2)
+                    if i == 1:
+                        self.left_stick_x = ((value-0.5)*2)
+
+                print()
+                time.sleep(self.timer_period)
+
             except Exception as e:
                 self.connected = False
-                self.get_logger().warn(f"Gamepad read error: {e}")
-
+                print("I2C Error:", e)
+                time.sleep(self.timer_period)
+            
     
 
 def gamepad_start(args=None):
@@ -101,3 +132,9 @@ def gamepad_start(args=None):
     # shutdown the ROS2 communication
     node.destroy_node()
     rclpy.shutdown()
+    """
+    Notes run sudo apt install python3-smbus for this to work.
+    Use these as checks for bus number
+    sudo apt install i2c-tools
+    sudo i2cdetect -y 1
+    """

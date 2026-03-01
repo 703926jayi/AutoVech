@@ -35,6 +35,7 @@ setup(
             'throttle_executable = autovech.Throttle:start_throttle',
             'brakes_executable = autovech.Brakes:start_brakes',
             'gamepad_executable = autovech.Gamepad:gamepad_start',
+            'steering_executable = autovech.Steering:steering_start',
         ],
     },
 )

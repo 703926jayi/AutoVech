@@ -15,4 +15,8 @@ def generate_launch_description():
             package='autovech',
             executable='gamepad_executable',
             output='screen'),
+        Node(
+            package='autovech',
+            executable='steering_executable',
+            output='screen)'),
     ])
