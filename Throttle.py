@@ -34,7 +34,7 @@ class ThrottleNode(Node):
         )
 
     def angle_callback(self, msg: Float32):
-        self.current_angle = msg.data
+        self.current_angle = 120 - 65 * msg.data
         self.update_servo()
 
     def connection_callback(self, msg: Bool):
@@ -43,9 +43,9 @@ class ThrottleNode(Node):
 
     def update_servo(self):
         if self.controller_connected:
-            angle = max(0, min(180, self.current_angle))
+            angle = max(120, min(55, self.current_angle))
         else:
-            angle = 0
+            angle = 180
         self.set_angle(angle)
 
     def set_angle(self, angle):
@@ -57,7 +57,7 @@ class ThrottleNode(Node):
         self.pwm.stop()
         GPIO.cleanup()
 
-def throttle_start(args=None):
+def start_throttle(args=None):
     # initialize the ROS2 communication
     rclpy.init(args=args)
     # declare the node constructor
