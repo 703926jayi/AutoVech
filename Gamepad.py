@@ -100,14 +100,14 @@ class GamepadNode(Node):
 
                     self.get_logger().info(f"CH{i+1}: {value:.3f}", end="  ")
 
-                    if i == 0:
+                    if i == 1:
                         if value > 0.5:
                             self.right_trigger = ((value-0.5)*2)
                             self.left_trigger = 0
                         else:
                             self.right_trigger = 0
                             self.left_trigger = ((abs(value)-0.5)*2)
-                    if i == 1:
+                    if i == 0:
                         self.left_stick_x = ((value-0.5)*2)
 
                 print()
