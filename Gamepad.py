@@ -11,7 +11,7 @@ import threading
 class GamepadNode(Node):
 
     def __init__(self, timer_period=0.02):
-        self.left_stick_y = 0.0
+        self.left_stick_x = 0.0
         self.right_trigger = 0.0
         self.left_trigger = 0.0
         self.mode = 0
