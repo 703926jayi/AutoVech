@@ -89,6 +89,7 @@ class GamepadNode(Node):
         while True:
             try:
                 self.connected = True
+                self.get_logger().info('Controller Connected')
                 # Read exactly 6 bytes
                 data = bus.read_i2c_block_data(self.ADDRESS, 0, self.NUM_CHANNELS)
                 
@@ -97,7 +98,7 @@ class GamepadNode(Node):
 
                 for i, value in enumerate(channels):
 
-                    print(f"CH{i+1}: {value:.3f}", end="  ")
+                    self.get_logger().info(f"CH{i+1}: {value:.3f}", end="  ")
 
                     if i == 0:
                         if value > 0.5:
