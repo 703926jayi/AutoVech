@@ -55,7 +55,9 @@ class GamepadNode(Node):
             except serial.SerialException:
                 if try_port == ports_to_try[-1]:
                     log.error("Could not open any serial port")
+                    self.connected = False
                     sys.exit(1)
+                    
 
         # Publishers
 
@@ -141,7 +143,7 @@ class GamepadNode(Node):
 
             if self.error_count % 10 == 0:
                 log.warning(f"Serial error: {e}")
-
+                self.connected = False
             return None
 
     # ──────────────────────────────────────────
