@@ -37,8 +37,8 @@ class GamepadNode(Node):
         self.error_count = 0
         self.port = port
 
-        # Try serial ports
-        ports_to_try = [port, '/dev/ttyACM0', '/dev/ttyUSB0', '/dev/ttyAMA0', '/dev/serial0']
+        # Try serial ports — deduplicated
+        ports_to_try = [port, '/dev/ttyACM0', '/dev/ttyUSB0', '/dev/serial0']
 
         for try_port in ports_to_try:
             try:
@@ -57,7 +57,6 @@ class GamepadNode(Node):
                     log.error("Could not open any serial port")
                     self.connected = False
                     sys.exit(1)
-                    
 
         # Publishers
 
@@ -188,9 +187,14 @@ class GamepadNode(Node):
             ch2 = channels[1]
 
             # Map channels
+            # ch1 → steering: full range 0.0–1.0
             self.left_stick_x = ch1
-            self.right_trigger = max(0.0, ch2 - 0.5) * 2
-            self.left_trigger = max(0.0, 0.5 - ch2) * 2
+
+            # ch2 → throttle/brake: 0.0 = full brake, 0.5 = neutral, 1.0 = full throttle
+            # CHANGED: was ch2 - 0.5 which assumed rest at 0.5; now uses full range for throttle
+            # and only activates brake when ch2 is below neutral (0.5)
+            self.right_trigger = max(0.0, ch2 - 0.5) * 2   # 0.5–1.0 → 0.0–1.0 throttle
+            self.left_trigger  = max(0.0, 0.5 - ch2) * 2   # 0.5–0.0 → 0.0–1.0 brake
 
     def destroy_node(self):
 
