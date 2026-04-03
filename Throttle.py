@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import time
 import lgpio
 import rclpy
 from rclpy.node import Node
@@ -10,8 +10,8 @@ from rclpy.qos import ReliabilityPolicy, QoSProfile
 class ThrottleNode(Node):
 
     FREQ = 333
-    VAL_MIN = 1875
-    VAL_MAX = 1306
+    PULSE_NEUTRAL = 1875    # µs — neutral/min (was VAL_MIN, renamed for clarity)
+    PULSE_MAX     = 1306   # µs — full throttle (was VAL_MAX, renamed for clarity)
 
     def __init__(self, pin=12):
 
@@ -25,9 +25,12 @@ class ThrottleNode(Node):
         self.h = lgpio.gpiochip_open(0)
         lgpio.gpio_claim_output(self.h, self.pin)
 
-        # Start neutral
-        neutral_duty = self.to_duty(self.VAL_MIN)
+        # CHANGED: arm the ESC by holding neutral for 3 seconds before accepting commands
+        self.get_logger().info("Arming ESC — holding neutral...")
+        neutral_duty = self.to_duty(self.PULSE_NEUTRAL)
         lgpio.tx_pwm(self.h, self.pin, self.FREQ, neutral_duty)
+        time.sleep(3)
+        self.get_logger().info("ESC armed")
 
         # Throttle subscriber
         self.angle_sub = self.create_subscription(
@@ -50,30 +53,25 @@ class ThrottleNode(Node):
         return (pulse_us / period_us) * 100
 
     def angle_callback(self, msg: Float32):
-
         self.current_throttle = max(0.0, min(1.0, msg.data))
         self.update_throttle()
 
     def connection_callback(self, msg: Bool):
-
         self.controller_connected = msg.data
         self.update_throttle()
 
     def update_throttle(self):
-
         if self.controller_connected:
-
-            pulse = self.VAL_MIN - (self.VAL_MIN - self.VAL_MAX) * self.current_throttle
+            # CHANGED: was VAL_MIN - (VAL_MIN - VAL_MAX) * throttle (confusing inverted naming)
+            # Now clearly: neutral + (max - neutral) * throttle
+            pulse = self.PULSE_NEUTRAL + (self.PULSE_MAX - self.PULSE_NEUTRAL) * self.current_throttle
             duty = self.to_duty(pulse)
-
         else:
-            # neutral throttle when disconnected
-            duty = self.to_duty(self.VAL_MIN)
+            duty = self.to_duty(self.PULSE_NEUTRAL)
 
         lgpio.tx_pwm(self.h, self.pin, self.FREQ, duty)
 
     def cleanup(self):
-
         lgpio.tx_pwm(self.h, self.pin, 0, 0)
         lgpio.gpiochip_close(self.h)
 
