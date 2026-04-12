@@ -209,7 +209,7 @@ class SteeringNode(Node):
 # MAIN
 # =========================================================
 
-def main(args=None):
+def start_steering(args=None):
     rclpy.init(args=args)
     node = SteeringNode()
 
