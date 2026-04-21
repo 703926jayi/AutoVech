@@ -1,10 +1,10 @@
-#Replace the standard Ros setup.py in your Ros2 package 
-
-# To generate this command
-# source /opt/ros/humble/setup.bash
-# cd ~/ros2_ws/src
-# ros2 pkg create --build-type ament_python autovech --dependencies rclpy
-
+# Once the repository is reorganized, this file should live inside:
+# autovech/ros2_ws/src/autovech/setup.py
+#
+# To build the workspace and test the nodes:
+# 1. cd ~/autovech/ros2_ws
+# 2. colcon build --packages-select autovech
+# 3. source install/setup.bash
 
 from setuptools import find_packages, setup
 import os

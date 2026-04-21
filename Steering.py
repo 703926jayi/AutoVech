@@ -32,7 +32,10 @@ class SteeringNode(Node):
         super().__init__("steering_node")
 
         # ================= CONFIG =================
-
+        # TODO (ROS 2 Integration): Move these hardcoded constants to ROS 2 Parameters 
+        # using self.declare_parameter(). This will allow the team to tune the max rate 
+        # and control periods via launch files or the CLI without recompiling the code,
+        # which is critical for matching Gazebo simulation physics to real-world hardware.
         self.node_id = 1
 
         self.MAX_POSITION = 0.4

@@ -38,6 +38,9 @@ class BrakesNode(Node):
         self.current_brake_pos = 0.0
 
         # Control parameters
+        # TODO: Expose 'kp' and 'deadband' as ROS 2 parameters. 
+        # The braking dynamics in the Gazebo simulation will likely require a 
+        # completely different Proportional gain (kp) than the physical linear actuator.
         self.deadband = 0.02
         self.kp = 100.0
 
@@ -65,6 +68,12 @@ class BrakesNode(Node):
         self.brake_position()
 
     def connection_callback(self, msg: Bool):
+        # EMERGENCY STOP LOGIC
+        # This listens to the 'is_connected' topic from the Gamepad.
+        # For autonomous, this should be hooked into a dedicated 
+        # hardware E-Stop or a ROS 2 lifecycle node heartbeat. 
+        # If the autonomous planner crashes, this must force the brakes to 1.0 
+        # and the throttle to idle.
         self.controller_connected = msg.data
         self.brake_position()
 

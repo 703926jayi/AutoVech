@@ -1,4 +1,13 @@
-'''import Jetson.GPIO as GPIO
+'''
+DEPRECATED: DO NOT USE IN ROS 2 ARCHITECTURE
+This script is a standalone legacy test file using Jetson.GPIO. 
+It has been superseded by the ROS 2 Humble node architecture outlined in 
+AutoVech Documentation (Software).md. 
+
+Running this script will cause hardware resource conflicts
+with the active autovech ROS 2 packages.
+
+import Jetson.GPIO as GPIO
 import time
 from Throttle import Throttle
 from Brakes import Brakes

@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+"""
+ROS 2 NODE: Gamepad Manual Override
+
+This node reads serial data from the RC receiver and publishes to the 
+vehicle's core topics (/throttle_angle, /brake_position, /steering_position).
+
+When the autonomous navigation stack is ready (e.g., Nav2 or custom path planner), 
+this node should be disabled or demoted to a safety-override node. 
+"""
 import time
 import rclpy
 from rclpy.node import Node
